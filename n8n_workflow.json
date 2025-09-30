@@ -1,0 +1,81 @@
+{
+  "name": "Hyperliquid \u2192 Telegram Alerts",
+  "nodes": [
+    {
+      "id": "1",
+      "name": "Webhook (Hyperliquid)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        260,
+        320
+      ],
+      "parameters": {
+        "path": "hyperliquid-events",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "responseData": "allData",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "2",
+      "name": "Format Message",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [
+        520,
+        320
+      ],
+      "parameters": {
+        "functionCode": "const itemsOut = [];\nfor (const item of items) {\n  const e = item.json.event || item.json;\n  const kind = e.kind || e.type || 'event';\n  const address = e.address || e.user || 'unknown';\n  const coin = e.coin || e.symbol || e.asset || '';\n  const side = e.dir || e.side || e.action || '';\n  const sz = e.sz || e.size || e.qty || '';\n  const px = e.px || e.price || '';\n  const time = e.time || e.timestamp || e.ts || Date.now();\n  const t = new Date(time).toLocaleString('pt-BR');\n  let line;\n  if (kind === 'fill') {\n    line = `\ud83c\udfaf Fill | ${coin} | ${side} ${sz} @ ${px} | ${t}\\n\ud83d\udc5b ${address}`;\n  } else if (kind === 'event') {\n    const status = e.status || e.eventType || 'order';\n    const lp = e.limitPx || e.price || '';\n    line = `\ud83d\udcdc ${status} | ${coin} | ${side} ${sz} ${lp ? '@ '+lp: ''} | ${t}\\n\ud83d\udc5b ${address}`;\n  } else if (kind === 'ledger') {\n    const lt = e.ledgerType || e.subType || 'ledger';\n    const amt = e.amount || e.delta || e.change || '';\n    const tok = e.token || coin || '';\n    line = `\ud83d\udcbc ${lt} | ${amt} ${tok} | ${t}\\n\ud83d\udc5b ${address}`;\n  } else {\n    line = `\ud83d\udce1 ${kind} | ${t}\\n${JSON.stringify(e).slice(0, 500)}`;\n  }\n  itemsOut.push({ json: { text: line } });\n}\nreturn itemsOut;\n"
+      }
+    },
+    {
+      "id": "3",
+      "name": "Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        780,
+        320
+      ],
+      "parameters": {
+        "chatId": "={{$env.TELEGRAM_CHAT_ID}}",
+        "text": "={{$json.text}}"
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-cred-id-placeholder",
+          "name": "Telegram Bot API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook (Hyperliquid)": {
+      "main": [
+        [
+          {
+            "node": "Format Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Message": {
+      "main": [
+        [
+          {
+            "node": "Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
